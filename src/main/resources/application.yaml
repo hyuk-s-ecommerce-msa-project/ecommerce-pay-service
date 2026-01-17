@@ -2,6 +2,8 @@ server:
   port: 0
 
 spring:
+  config:
+    import: "optional:file:.env[.properties]"
   application:
     name: pay-service
   h2:
@@ -26,3 +28,6 @@ eureka:
       defaultZone: http://127.0.0.1:8761/eureka
     fetch-registry: true
     register-with-eureka: true
+
+kakao:
+  secret: ${KAKAO_SECRET_KEY}
