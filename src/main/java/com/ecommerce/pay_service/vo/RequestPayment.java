@@ -14,7 +14,7 @@ public class RequestPayment {
     private String orderId;
 
     @NotNull(message = "결제 수단은 필수입니다.")
-    private PaymentType paymentType; // NAVER_PAY, KAKAO_PAY
+    private PaymentType paymentType; // KAKAO_PAY
 
     @NotEmpty(message = "결제할 상품이 최소 하나 이상 있어야 합니다.")
     private List<OrderItem> items;
