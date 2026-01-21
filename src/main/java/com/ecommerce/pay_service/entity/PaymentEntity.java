@@ -1,5 +1,6 @@
 package com.ecommerce.pay_service.entity;
 
+import com.ecommerce.pay_service.entity.enums.PaymentStatus;
 import com.ecommerce.pay_service.entity.enums.PaymentType;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
@@ -35,8 +36,9 @@ public class PaymentEntity {
     @Column(nullable = false)
     private PaymentType paymentType;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String status;
+    private PaymentStatus status;
 
     @OneToMany(mappedBy = "payment", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PaymentItemEntity> paymentItems = new ArrayList<>();
@@ -53,7 +55,7 @@ public class PaymentEntity {
         payment.orderId = orderId;
         payment.userId = userId;
         payment.paymentType = paymentType;
-        payment.status = "READY";
+        payment.status = PaymentStatus.READY;
         payment.totalAmount = 0;
         payment.createdAt = LocalDateTime.now();
 
@@ -69,5 +71,22 @@ public class PaymentEntity {
 
     public void updateTid(String tid) {
         this.tid = tid;
+    }
+
+    public void completePayment() {
+        this.status = PaymentStatus.COMPLETED;
+    }
+
+    public void failPayment() {
+        this.status = PaymentStatus.FAILED;
+    }
+
+    public void cancelPayment() {
+        this.status = PaymentStatus.CANCELED;
+    }
+
+    public void updatePaymentInfo(PaymentType paymentType) {
+        this.paymentType = paymentType;
+        this.status = PaymentStatus.READY;
     }
 }
