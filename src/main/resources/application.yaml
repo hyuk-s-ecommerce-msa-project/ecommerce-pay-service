@@ -36,3 +36,12 @@ eureka:
 
 kakao:
   secret: ${KAKAO_SECRET_KEY}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include:
+          - health
+          - beans
+          - info
