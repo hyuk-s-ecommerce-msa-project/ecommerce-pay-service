@@ -34,9 +34,6 @@ eureka:
     fetch-registry: true
     register-with-eureka: true
 
-kakao:
-  secret: ${KAKAO_SECRET_KEY}
-
 management:
   endpoints:
     web:
