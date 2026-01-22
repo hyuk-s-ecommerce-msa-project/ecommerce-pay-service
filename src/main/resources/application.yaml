@@ -2,10 +2,15 @@ server:
   port: 0
 
 spring:
-  config:
-    import: "optional:file:.env[.properties]"
   application:
     name: pay-service
+  cloud:
+    config:
+      name: gameinfo
+  config:
+    import:
+      - "optional:file:.env[.properties]"
+      - "optional:configserver:http://localhost:8888"
   h2:
     console:
       enabled: true
