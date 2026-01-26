@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -28,9 +29,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentRepository paymentRepository;
     private final ModelMapper modelMapper;
     private final RestTemplate restTemplate;
-
-    @Value("${kakao.secret}")
-    private String kakaoSecretKey;
+    private final Environment env;
 
     @Override
     @Transactional
@@ -64,7 +63,7 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "SECRET_KEY " + kakaoSecretKey);
+        headers.set("Authorization", "SECRET_KEY " + env.getProperty("kakao.secret"));
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         Map<String, Object> params = new HashMap<>();
@@ -146,7 +145,7 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         HttpHeaders headers = new HttpHeaders();
-        headers.set("Authorization", "SECRET_KEY " + kakaoSecretKey);
+        headers.set("Authorization", "SECRET_KEY " + env.getProperty("kakao.secret"));
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         Map<String, Object> params = new HashMap<>();

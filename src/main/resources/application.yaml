@@ -4,12 +4,14 @@ server:
 spring:
   application:
     name: pay-service
+  rabbitmq:
+    host: 127.0.0.1
+    port: 5672
   cloud:
     config:
-      name: gameinfo
+      name: gameinfo, kakao-service
   config:
     import:
-      - "optional:file:.env[.properties]"
       - "optional:configserver:http://localhost:8888"
   h2:
     console:
@@ -42,3 +44,4 @@ management:
           - health
           - beans
           - info
+          - busrefresh
