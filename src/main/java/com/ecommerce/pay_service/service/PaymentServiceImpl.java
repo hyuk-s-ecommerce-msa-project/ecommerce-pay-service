@@ -1,21 +1,25 @@
 package com.ecommerce.pay_service.service;
 
+import com.ecommerce.pay_service.client.KeyInventoryClient;
+import com.ecommerce.pay_service.client.OrderServiceClient;
 import com.ecommerce.pay_service.dto.KakaoApproveResponse;
 import com.ecommerce.pay_service.dto.KakaoReadyResponse;
 import com.ecommerce.pay_service.dto.PaymentDto;
 import com.ecommerce.pay_service.entity.PaymentEntity;
 import com.ecommerce.pay_service.entity.enums.PaymentType;
 import com.ecommerce.pay_service.repository.PaymentRepository;
+import com.ecommerce.pay_service.vo.RequestKey;
 import com.ecommerce.pay_service.vo.RequestPayment;
+import com.ecommerce.pay_service.vo.ResponsePayment;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -30,28 +34,8 @@ public class PaymentServiceImpl implements PaymentService {
     private final ModelMapper modelMapper;
     private final RestTemplate restTemplate;
     private final Environment env;
-
-    @Override
-    @Transactional
-    public void updatePaymentToCanceled(String orderId) {
-        PaymentEntity paymentEntity = paymentRepository.findByOrderId(orderId);
-
-        if (paymentEntity != null) {
-            paymentEntity.cancelPayment();
-            log.info("Payment status updated to CANCELED for Order ID: {}", orderId);
-        }
-    }
-
-    @Override
-    @Transactional
-    public void updatePaymentToFailed(String orderId) {
-        PaymentEntity paymentEntity = paymentRepository.findByOrderId(orderId);
-
-        if (paymentEntity != null) {
-            paymentEntity.failPayment();
-            log.info("Payment status updated to FAILED for Order ID: {}", orderId);
-        }
-    }
+    private final KeyInventoryClient keyInventoryClient;
+    private final OrderServiceClient orderServiceClient;
 
     @Override
     @Transactional
@@ -84,6 +68,18 @@ public class PaymentServiceImpl implements PaymentService {
 
             if (response != null) {
                 paymentEntity.completePayment();
+
+                RequestKey confirmRequestKey = new RequestKey();
+                confirmRequestKey.setOrderId(orderId);
+
+                keyInventoryClient.confirmKeys(confirmRequestKey, paymentEntity.getUserId());
+
+                ResponseEntity<ResponsePayment> orderResponse = orderServiceClient.completePayment(orderId, paymentEntity.getUserId());
+
+                if (orderResponse.getStatusCode().is2xxSuccessful() && orderResponse.getBody() != null) {
+                    log.info("주문 서비스 응답 성공: {}", orderResponse.getBody().getOrderId());
+                }
+
                 return response;
             } else {
                 paymentEntity.failPayment();
@@ -91,6 +87,11 @@ public class PaymentServiceImpl implements PaymentService {
             }
         } catch (Exception e) {
             paymentEntity.failPayment();
+
+            RequestKey revokeRequestKey = new RequestKey();
+            revokeRequestKey.setOrderId(orderId);
+            keyInventoryClient.revokeKeys(revokeRequestKey, paymentEntity.getUserId());
+
             log.error("Payment Failed for orderId = {}", orderId, e);
 
             throw new RuntimeException("Payment approval failed : " + e.getMessage());
