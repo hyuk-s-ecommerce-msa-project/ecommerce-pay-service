@@ -47,6 +47,8 @@ dependencies {
 	implementation 'org.springframework.cloud:spring-cloud-starter-bus-amqp'
 
 	implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+
+	runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
 }
 
 dependencyManagement {

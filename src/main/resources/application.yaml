@@ -19,14 +19,15 @@ spring:
       settings:
         web-allow-others: true
       path: /h2-console
-  datasource:
-    driver-class-name: org.h2.Driver
-    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;
-    username: sa
-    password:
   jpa:
     hibernate:
       ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        use_id_generator_strategy_three_lo: false
+        format_sql: true
+        dialect: org.hibernate.dialect.MariaDBDialect
 eureka:
   instance:
     instance-id: ${spring.application.name}:${spring.application.instance_id:${random.value}}
