@@ -3,9 +3,11 @@ package com.ecommerce.pay_service.service;
 import com.ecommerce.pay_service.client.KeyInventoryClient;
 import com.ecommerce.pay_service.client.OrderServiceClient;
 import com.ecommerce.pay_service.dto.KakaoApproveResponse;
+import com.ecommerce.pay_service.dto.KakaoCancelResponse;
 import com.ecommerce.pay_service.dto.KakaoReadyResponse;
 import com.ecommerce.pay_service.dto.PaymentDto;
 import com.ecommerce.pay_service.entity.PaymentEntity;
+import com.ecommerce.pay_service.entity.enums.PaymentStatus;
 import com.ecommerce.pay_service.entity.enums.PaymentType;
 import com.ecommerce.pay_service.repository.PaymentRepository;
 import com.ecommerce.pay_service.vo.RequestKey;
@@ -67,17 +69,37 @@ public class PaymentServiceImpl implements PaymentService {
             );
 
             if (response != null) {
+                if (!paymentEntity.getTotalAmount().equals(response.getAmount().getTotal())) {
+                    log.error("주문 ID : {}에서 기대 금액 : {}, 실제 결제액 : {}이 다릅니다", orderId, paymentEntity.getTotalAmount(), response.getAmount().getTotal());
+                    throw new RuntimeException("Total Amount Not Match");
+                }
+
                 paymentEntity.completePayment();
 
-                RequestKey confirmRequestKey = new RequestKey();
-                confirmRequestKey.setOrderId(orderId);
+                try {
+                    RequestKey confirmRequestKey = new RequestKey();
+                    confirmRequestKey.setOrderId(orderId);
 
-                keyInventoryClient.confirmKeys(confirmRequestKey, paymentEntity.getUserId());
+                    keyInventoryClient.confirmKeys(confirmRequestKey, paymentEntity.getUserId());
 
-                ResponseEntity<ResponsePayment> orderResponse = orderServiceClient.completePayment(orderId, paymentEntity.getUserId());
+                    ResponseEntity<ResponsePayment> orderResponse = orderServiceClient.completePayment(orderId, paymentEntity.getUserId());
 
-                if (orderResponse.getStatusCode().is2xxSuccessful() && orderResponse.getBody() != null) {
-                    log.info("주문 서비스 응답 성공: {}", orderResponse.getBody().getOrderId());
+                    if (orderResponse.getStatusCode().is2xxSuccessful() && orderResponse.getBody() != null) {
+                        log.info("주문 서비스 응답 성공: {}", orderResponse.getBody().getOrderId());
+                    } else {
+                        throw new RuntimeException("Order Service Error");
+                    }
+                } catch (Exception e) {
+                    log.error("후속 처리 실패로 인한 결제 취소 진행 : {}", e.getMessage());
+
+                    KakaoCancelResponse cancelResponse = callKakaoCancel(response.getCid(), response.getTid(), response.getAmount().getTotal(),
+                                                                        response.getAmount().getTax_free());
+
+                    paymentEntity.cancelPayment();
+
+                    log.info("결제 취소 내역 : {}", cancelResponse);
+
+                    throw new RuntimeException("결제 후처리 실패로 인해 자동 취소 되었습니다.", e);
                 }
 
                 return response;
@@ -110,6 +132,10 @@ public class PaymentServiceImpl implements PaymentService {
                     request.getPaymentType()
             );
         } else {
+            if (paymentEntity.getStatus() == PaymentStatus.COMPLETED) {
+                throw new RuntimeException("This order is already paid");
+            }
+
             paymentEntity.getPaymentItems().clear();
             paymentEntity.updatePaymentInfo(request.getPaymentType());
         }
@@ -137,6 +163,26 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         return paymentDto;
+    }
+
+    private KakaoCancelResponse callKakaoCancel(String cid, String tid, Integer cancelAmount, Integer taxFree) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Authorization", "SECRET_KEY " + env.getProperty("kakao.secret"));
+        headers.setContentType(MediaType.APPLICATION_JSON);
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("cid", cid);
+        params.put("tid", tid);
+        params.put("cancel_amount", cancelAmount);
+        params.put("tax_free", taxFree);
+
+        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(params, headers);
+
+        return restTemplate.postForObject(
+                "https://open-api.kakaopay.com/online/v1/payment/cancel",
+                entity,
+                KakaoCancelResponse.class
+        );
     }
 
     private KakaoReadyResponse callKakaoReady(RequestPayment request, String userId, Integer totalAmount) {
