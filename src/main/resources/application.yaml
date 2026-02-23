@@ -10,9 +10,12 @@ spring:
   cloud:
     config:
       name: gameinfo, kakao-service
+    openfeign:
+      circuitbreaker:
+        enabled: true
   config:
     import:
-      - "optional:configserver:http://localhost:8888"
+      - "optional:configserver:http://localhost:9088"
   h2:
     console:
       enabled: true
@@ -38,6 +41,13 @@ eureka:
     register-with-eureka: true
 
 management:
+  tracing:
+    sampling:
+      probability: 1.0
+    enabled: true
+  zipkin:
+    tracing:
+      endpoint: http://localhost:9411/api/v2/spans
   endpoints:
     web:
       exposure:
@@ -46,3 +56,5 @@ management:
           - beans
           - info
           - busrefresh
+          - prometheus
+          - metrics
