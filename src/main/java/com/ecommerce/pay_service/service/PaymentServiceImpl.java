@@ -13,6 +13,7 @@ import com.ecommerce.pay_service.repository.PaymentRepository;
 import com.ecommerce.pay_service.vo.RequestKey;
 import com.ecommerce.pay_service.vo.RequestPayment;
 import com.ecommerce.pay_service.vo.ResponseOrder;
+import com.ecommerce.snowflake.util.SnowflakeIdGenerator;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +34,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final KeyInventoryClient keyInventoryClient;
     private final KakaoPayClient kakaoPayClient;
     private final InternalServiceConnector internalConnector;
+    private final SnowflakeIdGenerator snowflakeIdGenerator;
 
     @Override
     @Transactional
@@ -112,8 +114,11 @@ public class PaymentServiceImpl implements PaymentService {
 
         PaymentEntity paymentEntity = paymentRepository.findByOrderId(request.getOrderId());
 
+        Long snowflakeId = snowflakeIdGenerator.nextId();
+
         if (paymentEntity == null) {
             paymentEntity = PaymentEntity.createPayment(
+                    snowflakeId,
                     request.getOrderId(),
                     userId,
                     request.getPaymentType()
@@ -129,8 +134,10 @@ public class PaymentServiceImpl implements PaymentService {
 
         final PaymentEntity finalEntity = paymentEntity;
 
-        request.getItems().forEach(item ->
-                finalEntity.addPaymentItem(item.getProductId(), item.getUnitPrice(), item.getQty())
+        request.getItems().forEach(item -> {
+                    Long itemSnowflakeId = snowflakeIdGenerator.nextId();
+                    finalEntity.addPaymentItem(itemSnowflakeId, item.getProductId(), item.getUnitPrice(), item.getQty());
+                }
         );
 
         KakaoReadyResponse kakaoResponse = null;

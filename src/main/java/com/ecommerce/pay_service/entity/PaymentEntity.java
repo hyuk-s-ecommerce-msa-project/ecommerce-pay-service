@@ -20,7 +20,6 @@ import java.util.List;
 @EntityListeners(AuditingEntityListener.class)
 public class PaymentEntity {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(nullable = false, unique = true)
@@ -49,9 +48,10 @@ public class PaymentEntity {
     @CreatedDate
     private LocalDateTime createdAt;
 
-    public static PaymentEntity createPayment(String orderId, String userId, PaymentType paymentType) {
+    public static PaymentEntity createPayment(Long id, String orderId, String userId, PaymentType paymentType) {
         PaymentEntity payment = new PaymentEntity();
 
+        payment.id = id;
         payment.orderId = orderId;
         payment.userId = userId;
         payment.paymentType = paymentType;
@@ -62,8 +62,8 @@ public class PaymentEntity {
         return payment;
     }
 
-    public void addPaymentItem(String productId, Integer unitPrice, Integer qty) {
-        PaymentItemEntity item = PaymentItemEntity.createPaymentItem(productId, unitPrice, qty, this);
+    public void addPaymentItem(Long id, String productId, Integer unitPrice, Integer qty) {
+        PaymentItemEntity item = PaymentItemEntity.createPaymentItem(id, productId, unitPrice, qty, this);
 
         this.paymentItems.add(item);
         this.totalAmount += (unitPrice * qty); // 상품이 추가될 때마다 총액 갱신

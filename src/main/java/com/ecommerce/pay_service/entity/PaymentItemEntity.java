@@ -11,7 +11,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PaymentItemEntity {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(nullable = false)
@@ -26,9 +25,10 @@ public class PaymentItemEntity {
     @JoinColumn(name = "payment_id")
     private PaymentEntity payment;
 
-    public static PaymentItemEntity createPaymentItem(String productId, Integer unitPrice, Integer qty, PaymentEntity payment) {
+    public static PaymentItemEntity createPaymentItem(Long id, String productId, Integer unitPrice, Integer qty, PaymentEntity payment) {
         PaymentItemEntity item = new PaymentItemEntity();
 
+        item.id = id;
         item.productId = productId;
         item.unitPrice = unitPrice;
         item.qty = qty;
