@@ -9,7 +9,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 
-@FeignClient(name = "order-service")
+@FeignClient(
+        name = "order-service",
+        url = "http://order-service:8083"
+)
 public interface OrderServiceClient {
     @PostMapping("/order-service/orders/{orderId}/complete")
     ResponseEntity<ResponsePayment> completePayment(@PathVariable("orderId") String orderId, @RequestHeader("userId") String userId);

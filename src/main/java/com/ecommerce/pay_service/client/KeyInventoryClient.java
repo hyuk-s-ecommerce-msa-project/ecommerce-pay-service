@@ -6,7 +6,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 
-@FeignClient(name = "key-inventory-service")
+@FeignClient(
+        name = "key-inventory-service",
+        url = "http://key-inventory-service:8085"
+)
 public interface KeyInventoryClient {
     @PostMapping("/key-inventory/confirm")
     void confirmKeys(@RequestBody RequestKey requestKey, @RequestHeader("userId") String userId);

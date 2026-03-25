@@ -1,13 +1,13 @@
 server:
-  port: 0
+  port: 8084
 
 spring:
   datasource:
-    url: jdbc:mariadb://localhost:3306/gameinfo_pay
+    url: jdbc:mariadb://10.0.0.4:3306/gameinfo_pay
   application:
     name: pay-service
   rabbitmq:
-    host: 127.0.0.1
+    host: 10.0.0.4
     port: 5672
   cloud:
     config:
@@ -17,7 +17,7 @@ spring:
         enabled: true
   config:
     import:
-      - "optional:configserver:http://config-server:9088"
+      - "optional:configserver:http://config-service:9088"
   h2:
     console:
       enabled: true
@@ -33,14 +33,6 @@ spring:
         use_id_generator_strategy_three_lo: false
         format_sql: true
         dialect: org.hibernate.dialect.MariaDBDialect
-eureka:
-  instance:
-    instance-id: ${spring.application.name}:${spring.application.instance_id:${random.value}}
-  client:
-    service-url:
-      defaultZone: http://127.0.0.1:8761/eureka
-    fetch-registry: true
-    register-with-eureka: true
 
 management:
   tracing:
@@ -49,7 +41,7 @@ management:
     enabled: true
   zipkin:
     tracing:
-      endpoint: http://localhost:9411/api/v2/spans
+      endpoint: http://10.0.0.4:9411/api/v2/spans
   endpoints:
     web:
       exposure:
