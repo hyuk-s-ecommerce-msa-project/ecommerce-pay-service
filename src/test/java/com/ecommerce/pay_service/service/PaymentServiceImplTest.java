@@ -5,9 +5,11 @@ import com.ecommerce.pay_service.client.KeyInventoryClient;
 import com.ecommerce.pay_service.dto.KakaoApproveResponse;
 import com.ecommerce.pay_service.dto.KakaoReadyResponse;
 import com.ecommerce.pay_service.dto.PaymentDto;
+import com.ecommerce.pay_service.entity.OutboxEntity;
 import com.ecommerce.pay_service.entity.PaymentEntity;
 import com.ecommerce.pay_service.entity.enums.PaymentStatus;
 import com.ecommerce.pay_service.entity.enums.PaymentType;
+import com.ecommerce.pay_service.repository.OutboxRepository;
 import com.ecommerce.pay_service.repository.PaymentRepository;
 import com.ecommerce.pay_service.service.connector.InternalServiceConnector;
 import com.ecommerce.pay_service.vo.RequestPayment;
@@ -43,7 +45,7 @@ class PaymentServiceImplTest {
     @Mock
     private InternalServiceConnector internalConnector;
     @Mock
-    private KeyInventoryClient keyInventoryClient;
+    private OutboxRepository outboxRepository;
     @Mock
     private SnowflakeIdGenerator snowflakeIdGenerator;
     @Mock

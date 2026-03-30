@@ -42,7 +42,7 @@ public class PaymentEntity {
     @OneToMany(mappedBy = "payment", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PaymentItemEntity> paymentItems = new ArrayList<>();
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private String tid;
 
     @CreatedDate

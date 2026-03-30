@@ -1,5 +1,8 @@
 package com.ecommerce.pay_service.service;
 
+import com.ecommerce.pay_service.entity.OutboxEntity;
+import com.ecommerce.pay_service.message.KafkaProducer;
+import com.ecommerce.pay_service.repository.OutboxRepository;
 import com.ecommerce.pay_service.service.connector.InternalServiceConnector;
 import com.ecommerce.pay_service.client.KakaoPayClient;
 import com.ecommerce.pay_service.client.KeyInventoryClient;
@@ -14,6 +17,7 @@ import com.ecommerce.pay_service.vo.RequestKey;
 import com.ecommerce.pay_service.vo.RequestPayment;
 import com.ecommerce.pay_service.vo.ResponseOrder;
 import com.ecommerce.snowflake.util.SnowflakeIdGenerator;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
@@ -21,6 +25,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -35,6 +40,8 @@ public class PaymentServiceImpl implements PaymentService {
     private final KakaoPayClient kakaoPayClient;
     private final InternalServiceConnector internalConnector;
     private final SnowflakeIdGenerator snowflakeIdGenerator;
+    private final OutboxRepository outboxRepository;
+    private final KafkaProducer kafkaProducer;
 
     @Override
     @Transactional
@@ -63,44 +70,34 @@ public class PaymentServiceImpl implements PaymentService {
             KakaoApproveResponse response = kakaoPayClient.approve(auth, params);
 
             if (response != null) {
-                if (!paymentEntity.getTotalAmount().equals(response.getAmount().getTotal())) {
-                    throw new RuntimeException("Total Amount Not Match");
-                }
-
                 paymentEntity.completePayment();
 
-                try {
-                    internalConnector.confirmKeyAndOrder(orderId, paymentEntity.getUserId());
-                } catch (Exception e) {
-                    Map<String, Object> cancelParams = new HashMap<>();
+                String messagePayload = String.format(
+                        "{\"orderId\":\"%s\", \"userId\":\"%s\", \"amount\":%d}",
+                        orderId, paymentEntity.getUserId(), response.getAmount().getTotal()
+                );
 
-                    cancelParams.put("cid", response.getCid());
-                    cancelParams.put("tid", response.getTid());
-                    cancelParams.put("cancel_amount", response.getAmount().getTotal());
-                    cancelParams.put("tax_free", response.getAmount().getTax_free());
+                OutboxEntity outbox = new OutboxEntity(
+                        snowflakeIdGenerator.nextId(),
+                        orderId,
+                        "ORDER",
+                        "PAYMENT_COMPLETED",
+                        messagePayload,
+                        false,
+                        LocalDateTime.now()
+                );
 
-                    kakaoPayClient.cancel(auth, cancelParams);
-                    paymentEntity.cancelPayment();
+                outboxRepository.save(outbox);
 
-                    throw new RuntimeException("후처리 실패로 자동 취소", e);
-                }
+                log.info("결제 완료 및 Outbox 저장 완료: {}", orderId);
 
                 return response;
             } else {
-                paymentEntity.failPayment();
-                throw new RuntimeException("Payment failed");
+                throw new RuntimeException("카카오 승인 응답이 비어있습니다.");
             }
         } catch (Exception e) {
-            if (paymentEntity.getStatus() != PaymentStatus.CANCELED) {
-                paymentEntity.failPayment();
-            }
-
-            RequestKey revokeRequestKey = new RequestKey();
-            revokeRequestKey.setOrderId(orderId);
-            keyInventoryClient.revokeKeys(revokeRequestKey, paymentEntity.getUserId());
-
-            log.error("Payment approval failed: {}", e.getMessage());
-            throw new RuntimeException("Payment approval failed : " + e.getMessage());
+            log.error("결제 처리 중 예외 발생: {}", e.getMessage());
+            throw new RuntimeException("결제 프로세스 실패", e);
         }
     }
 
@@ -183,5 +180,89 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         return paymentDto;
+    }
+
+    @Override
+    @Transactional
+    public void cancelPayment(String orderId, String reason) {
+        PaymentEntity paymentEntity = paymentRepository.findByOrderId(orderId);
+
+        if (paymentEntity == null) {
+            throw new RuntimeException("취소할 결제 정보를 찾을 수 없습니다.");
+        }
+
+        if (paymentEntity.getStatus() == PaymentStatus.CANCELED) {
+            log.info("이미 취소된 주문입니다: {}", orderId);
+            return;
+        }
+
+        String auth = "SECRET_KEY " + env.getProperty("kakao.secret");
+        Map<String, Object> params = new HashMap<>();
+        params.put("cid", "TC0ONETIME");
+        params.put("tid", paymentEntity.getTid());
+        params.put("cancel_amount", paymentEntity.getTotalAmount()); // 전액 환불 기준
+        params.put("cancel_tax_free_amount", 0);
+
+        try {
+            kakaoPayClient.cancel(auth, params);
+
+            paymentEntity.cancelPayment();
+
+            String messagePayload = String.format(
+                    "{\"orderId\":\"%s\", \"status\":\"CANCELLED\", \"reason\":\"%s\"}",
+                    orderId, reason
+            );
+
+            OutboxEntity outbox = new OutboxEntity(
+                    snowflakeIdGenerator.nextId(),
+                    orderId,
+                    "ORDER",
+                    "PAYMENT_CANCELLED",
+                    messagePayload,
+                    false,
+                    LocalDateTime.now()
+            );
+            outboxRepository.save(outbox);
+
+            log.info("결제 취소 완료 및 Outbox 저장: {}", orderId);
+
+        } catch (Exception e) {
+            log.error("결제 취소 중 오류 발생: {}", e.getMessage());
+            throw new RuntimeException("환불 처리 실패", e);
+        }
+    }
+
+    @Transactional
+    @Override
+    public void updatePaymentToFailed(String orderId) {
+        PaymentEntity payment = paymentRepository.findByOrderId(orderId);
+
+        if (payment == null) {
+            throw new IllegalArgumentException("해당 주문의 결제 내역이 존재하지 않습니다. orderId: " + orderId);
+        }
+
+        payment.failPayment();
+        paymentRepository.save(payment);
+
+        String messagePayload = String.format(
+                "{\"orderId\":\"%s\", \"status\":\"FAILED\"}",
+                orderId
+        );
+
+        OutboxEntity outbox = new OutboxEntity(
+                snowflakeIdGenerator.nextId(),
+                orderId,
+                "ORDER", // 목적지 서비스 또는 도메인
+                "PAYMENT_FAILED", // 이벤트 타입
+                messagePayload,
+                false,
+                LocalDateTime.now()
+        );
+
+        outboxRepository.save(outbox);
+
+        kafkaProducer.send("pay-failed-topic", orderId);
+
+        log.info("결제 실패 처리 완료 - OrderID: {}, Status: {}", payment.getOrderId(), payment.getStatus());
     }
 }

@@ -8,4 +8,6 @@ import com.ecommerce.pay_service.vo.RequestPayment;
 public interface PaymentService {
     PaymentDto processPayment(RequestPayment request, String userId);
     KakaoApproveResponse completePayment(String pgToken, String orderId);
+    void cancelPayment(String orderId, String reason);
+    void updatePaymentToFailed(String orderId);
 }

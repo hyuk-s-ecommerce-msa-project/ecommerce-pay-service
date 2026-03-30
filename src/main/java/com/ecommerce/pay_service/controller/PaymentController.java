@@ -34,4 +34,18 @@ public class PaymentController {
 
         return ResponseEntity.status(HttpStatus.OK).body(approveResponse);
     }
+
+    @GetMapping("/payment/cancel")
+    public ResponseEntity<String> cancelPayment(@RequestParam("order_id") String orderId) {
+        paymentService.cancelPayment(orderId, "USER_CANCEL");
+        return ResponseEntity.status(HttpStatus.OK).body("결제가 취소되었습니다.");
+    }
+
+    @GetMapping("/payment/fail")
+    public ResponseEntity<String> failPayment(@RequestParam("order_id") String orderId) {
+        paymentService.updatePaymentToFailed(orderId);
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body("결제 인증에 실패하였습니다. 다시 시도해 주세요.");
+    }
 }
