@@ -2,13 +2,8 @@ server:
   port: 8084
 
 spring:
-  datasource:
-    url: jdbc:mariadb://10.0.0.4:3306/gameinfo_pay
   application:
     name: pay-service
-  rabbitmq:
-    host: 10.0.0.4
-    port: 5672
   cloud:
     config:
       name: gameinfo, kakao-service
@@ -24,31 +19,3 @@ spring:
       settings:
         web-allow-others: true
       path: /h2-console
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: true
-    properties:
-      hibernate:
-        use_id_generator_strategy_three_lo: false
-        format_sql: true
-        dialect: org.hibernate.dialect.MariaDBDialect
-
-management:
-  tracing:
-    sampling:
-      probability: 1.0
-    enabled: true
-  zipkin:
-    tracing:
-      endpoint: http://10.0.0.4:9411/api/v2/spans
-  endpoints:
-    web:
-      exposure:
-        include:
-          - health
-          - beans
-          - info
-          - busrefresh
-          - prometheus
-          - metrics
