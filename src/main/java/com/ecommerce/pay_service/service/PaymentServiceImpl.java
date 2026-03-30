@@ -14,12 +14,12 @@ import com.ecommerce.pay_service.vo.RequestKey;
 import com.ecommerce.pay_service.vo.RequestPayment;
 import com.ecommerce.pay_service.vo.ResponseOrder;
 import com.ecommerce.snowflake.util.SnowflakeIdGenerator;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -40,6 +40,10 @@ public class PaymentServiceImpl implements PaymentService {
     @Transactional
     public KakaoApproveResponse completePayment(String pgToken, String orderId) {
         PaymentEntity paymentEntity = paymentRepository.findByOrderId(orderId);
+
+        if (paymentEntity.getStatus() != PaymentStatus.READY) {
+            throw new RuntimeException("이미 처리된 결제입니다.");
+        }
 
         if (paymentEntity == null) {
             throw new RuntimeException("Cannot find Payment Info");
@@ -87,12 +91,15 @@ public class PaymentServiceImpl implements PaymentService {
                 throw new RuntimeException("Payment failed");
             }
         } catch (Exception e) {
-            paymentEntity.failPayment();
+            if (paymentEntity.getStatus() != PaymentStatus.CANCELED) {
+                paymentEntity.failPayment();
+            }
+
             RequestKey revokeRequestKey = new RequestKey();
             revokeRequestKey.setOrderId(orderId);
-
             keyInventoryClient.revokeKeys(revokeRequestKey, paymentEntity.getUserId());
 
+            log.error("Payment approval failed: {}", e.getMessage());
             throw new RuntimeException("Payment approval failed : " + e.getMessage());
         }
     }
@@ -159,7 +166,12 @@ public class PaymentServiceImpl implements PaymentService {
             readyParams.put("fail_url", "http://localhost:8000/payment-service/payment/fail?order_id=" + request.getOrderId());
 
             kakaoResponse = kakaoPayClient.ready(auth, readyParams);
-            paymentEntity.updateTid(kakaoResponse.getTid());
+
+            if (kakaoResponse != null) {
+                paymentEntity.updateTid(kakaoResponse.getTid());
+            } else {
+                throw new RuntimeException("카카오페이 준비 중 오류가 발생했습니다.");
+            }
         }
 
         paymentRepository.save(paymentEntity);
