@@ -212,4 +212,24 @@ class PaymentServiceImplTest {
 
         verify(paymentRepository, times(0)).save(any(PaymentEntity.class));
     }
+
+    @Test
+    @DisplayName("증명: 카카오 결제는 성공(External OK)했으나 DB는 롤백(Internal Fail)된 불일치 상황")
+    void prove_data_inconsistency() {
+        String orderId = "PROVE-ERR-001";
+        KakaoApproveResponse mockResponse = new KakaoApproveResponse();
+
+        lenient().when(kakaoPayClient.approve(anyString(), anyMap())).thenReturn(mockResponse);
+
+        assertThrows(RuntimeException.class, () -> {
+            paymentService.completePayment("fake-token", orderId);
+        });
+
+        PaymentEntity payment = paymentRepository.findByOrderId(orderId);
+
+        assertThat(payment).as("DB는 롤백되어 데이터가 없어야 함").isNull();
+
+        System.out.println("카카오 승인은 호출되었지만, DB 트랜잭션은 성공적으로 롤백됨.");
+        System.out.println("사용자는 결제 완료 문자를 받았으나, 우리 시스템엔 주문 기록이 없는 '데이터 불일치' 발생.");
+    }
 }
